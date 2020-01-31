@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+# ここに認証情報を記述し-fで指定するかiso-name.shと同じ階層にauthという名前で配置することで認証を自動で行います。
+
+# ユーザー名
+auth_user=
+
+# パスワード
+auth_pass=
