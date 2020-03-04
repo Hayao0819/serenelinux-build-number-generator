@@ -1,19 +1,16 @@
 #!/usr/bin/env bash
 set -e
 
-#-- 基本設定 --#
-os_name="serenelinux"
-extention="iso"
-api_url="https://api.s.0u0.biz/w.php"
-auth_file=
-cli_mode=false
-window_icon=
-window_text="SereneLinux ビルド番号ジェネレーター"
-
 #-- 変数定義 --#
 current_dir=$(cd $(dirname ${0}) && pwd)
 current_path=$(cd $(dirname ${0}) && pwd)/$(basename ${0})
-
+os_name="serenelinux"
+extention="iso"
+api_url="https://api.s.0u0.biz/w.php"
+auth_file=${current_dir}/auth
+cli_mode=false
+window_icon=
+window_text="SereneLinux ビルド番号ジェネレーター"
 
 #-- GUI 関数 --#
 # ウィンドウの基本型
@@ -38,123 +35,80 @@ function usage () {
     echo " -c       : CLIモードで動作します。"
     echo " -g       : GUIモードで動作します。"
     echo " -f       : 認証ファイルを指定します。"
-    exit 0
 }
-
 
 #-- 引数解析 --#
 while getopts 'u:p:hcgf:' arg; do
     case "${arg}" in
-        u) auth_user="${OPTARG}";;
-        p) auth_pass="${OPTARG}";;
-        h) usage;;
-        c) cli_mode=true;;
-        g) cli_mode=false;;
-        f) auth_file="${OPTARG}"
+        u) auth_user="${OPTARG}" ;;
+        p) auth_pass="${OPTARG}" ;;
+        h) usage; exit 0 ;;
+        c) cli_mode=true ;;
+        g) cli_mode=false ;;
+        f) auth_file="${OPTARG}" ;;
+        *) usage; exit 1 ;;
     esac
 done
 
-
 #-- 認証情報 --#
-function auth_gui () {
-    while true; do
-        auth_full=$(
-            window \
-                --forms \
-                --separator='|' \
-                --text="認証情報を入力してください。" \
-                --add-entry="ユーザ名" \
-                --add-password="パスワード" 
-        )
-        auth_full=${auth_full//'|'/' '}
-        auth_user=$(echo ${auth_full} | awk '{print $1}')
-        auth_pass=$(echo ${auth_full} | awk '{print $2}')
-        if [[ -n ${auth_user} && -n ${auth_pass} ]]; then
-            break
-        fi
-    done
-}
-
-function auth_cli () {
-    while [ -z ${auth_user} ]; do
-        echo -n "ユーザー名を入力してください。： "
-        read auth_user
-    done
-    while [ -z ${auth_pass} ]; do
-        echo -n "パスワードを入力してください。： "
-        read -s auth_pass
-        echo
-    done
-}
-
 function auth () {
     if [[ ${cli_mode} = true ]]; then
-        auth_cli
+        while [ -z ${auth_user} ]; do
+            echo -n "ユーザー名を入力してください。： "
+            read auth_user
+        done
+        while [ -z ${auth_pass} ]; do
+            echo -n "パスワードを入力してください。： "
+            read -s auth_pass
+            echo
+        done
     else
-        auth_gui
+        while true; do
+            auth_full=$(
+                window \
+                    --forms \
+                    --separator='|' \
+                    --text="認証情報を入力してください。" \
+                    --add-entry="ユーザ名" \
+                    --add-password="パスワード" 
+            )
+            auth_full=${auth_full//'|'/' '}
+            auth_user=$(echo ${auth_full} | awk '{print $1}')
+            auth_pass=$(echo ${auth_full} | awk '{print $2}')
+            if [[ -n ${auth_user} && -n ${auth_pass} ]]; then
+                break
+            fi
+        done
     fi
 }
 
-<<DIS
-if [[ ! -f ${auth_file} ]]; then
-    if [[ -z ${auth_user} || -z ${auth_pass} ]]; then
-        auth
-    fi
-else
-    source ${auth_file}
-    if [[ -z ${auth_user} || -z ${auth_pass} ]]; then
-        auth
-    fi
-fi
-DIS
-
-
-if [[ -f ${auth_file} ]]; then
-    source ${auth_file}
-fi
-if [[ -z ${auth_user} || -z ${auth_pass} ]]; then
-    auth
-fi
-
-    
-
-
+[[ -f ${auth_file} ]] && source ${auth_file}
+[[ -z ${auth_user} || -z ${auth_pass} ]] && auth
 
 #-- 情報生成 --#
 build_info=$(curl -s -u ${auth_user}:${auth_pass} ${api_url} -d url=${url}) > /dev/null
 version=$(echo ${build_info} | awk '{print $2}')
 name="${os_name}_${version}.${extention}"
 
-
 #-- 認証チェック --#
 function auth_failed () {
-    if [[ ${cli_mode} = true ]]; then
-        error_cli "認証に失敗しました。"
-    else
-        error 500 100 "認証に失敗しました。"
-    fi
+    [[ ${cli_mode} = true ]] && error_cli "認証に失敗しました。"
+    [[ ${cli_mode} = false ]] && error 500 100 "認証に失敗しました。"
     return 1
     bash ${current_path} ${@}
 }
 
 function server_failed () {
-    if [[ ${cli_mode} = true ]]; then
-        error_cli "サーバに問題が発生しました。"
-    else
-        error 500 100 "サーバに問題が発生しました。"
-    fi
+    [[ ${cli_mode} = true ]] && error_cli "サーバに問題が発生しました。"
+    [[ ${cli_mode} = false ]] && error 500 100 "サーバに問題が発生しました。"
     exit 3
 }
 
 function unknown () {
-    if [[ ${cli_mode} = true ]]; then
-        error_cli "不明なエラーが発生しました。"
-    else
-        error 500 100 "不明なエラーが発生しました。"
-    fi
+    [[ ${cli_mode} = true ]] && error_cli "不明なエラーが発生しました。"
+    [[ ${cli_mode} = false ]] && error 500 100 "不明なエラーが発生しました。"
     exit 255
 }
-
 
 if [[ ${build_info} == *"-Error"* ]]; then
     error=${build_info}
@@ -167,9 +121,7 @@ if [[ ${build_info} == *"-Error"* ]]; then
           *) unknown ;; 
     esac
 else
-    if [[ $cli_mode = false ]]; then
-        info 500 100 "イメージファイル名は「${name}」です。"
-    fi
+    [[ $cli_mode = false ]] && info 500 100 "イメージファイル名は「${name}」です。"
     echo ${name}
     exit 0
 fi
