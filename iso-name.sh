@@ -45,8 +45,8 @@ function usage () {
 #-- 引数解析 --#
 while getopts 'u:p:hcgf:' arg; do
     case "${arg}" in
-        u) user="${OPTARG}";;
-        p) pass="${OPTARG}";;
+        u) auth_user="${OPTARG}";;
+        p) auth_pass="${OPTARG}";;
         h) usage;;
         c) cli_mode=true;;
         g) cli_mode=false;;
@@ -95,14 +95,28 @@ function auth () {
     fi
 }
 
+<<DIS
 if [[ ! -f ${auth_file} ]]; then
-    auth
+    if [[ -z ${auth_user} || -z ${auth_pass} ]]; then
+        auth
+    fi
 else
     source ${auth_file}
     if [[ -z ${auth_user} || -z ${auth_pass} ]]; then
         auth
     fi
 fi
+DIS
+
+
+if [[ -f ${auth_file} ]]; then
+    source ${auth_file}
+fi
+if [[ -z ${auth_user} || -z ${auth_pass} ]]; then
+    auth
+fi
+
+    
 
 
 
